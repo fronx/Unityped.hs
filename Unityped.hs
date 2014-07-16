@@ -4,11 +4,13 @@ module Unityped where
 
 import Prelude hiding ((*), (==), (++), print, show, concat)
 import qualified Prelude as P
+import Data.List hiding ((++))
 
 data D = B Bool
        | N Int
        | S String
        | F ([D] -> D)
+       | List [D]
 
 print d = putStrLn s
   where S s = show $$ [d]
@@ -19,6 +21,10 @@ show = dyn f
         f (N n:[])     = dyn (P.show n)
         f (S s:[])     = dyn s
         f (F _:[])     = dyn "(function)"
+        f (List l:[])  = (dyn "[") ++
+                         (dyn (intercalate ", " (map nydShow l))) ++
+                         (dyn "]")
+        nydShow d = nyd (show $$ [d])
 
 reflect = dyn f
   where f (d:[]) = dyn (_reflect d)
@@ -26,13 +32,13 @@ reflect = dyn f
 _reflect (B _) = "bool"
 _reflect (N _) = "number"
 _reflect (S _) = "string"
-_reflect (F _) = "function(x)"
-
-($$) :: D -> [D] -> D
-(F f) $$ ds = f ds
+_reflect (F _) = "function"
+_reflect (List _) = "list"
 
 class DynEq a where
   (==) :: D -> a -> D
+
+infix 4 ==
 
 instance DynEq Int where
   (N n) == m = dyn (n P.== m)
@@ -65,6 +71,10 @@ instance Dyn ([D] -> D) where
   dyn = F
   nyd (F f) = f
 
+instance Dyn [D] where
+  dyn = List
+  nyd (List l) = l
+
 dynf :: (Dyn a, Dyn b) => (a -> b) -> D -> D
 dynf f d = dyn (f (nyd d))
 
@@ -83,16 +93,24 @@ mulInt = dynf2 f
   where f :: String -> String -> String
         f = (P.++)
 
+($$) :: D -> [D] -> D
+(F f) $$ ds = f ds
+
+typeCase :: D -> [(String, D)] -> D
+typeCase d [] = error "empty case list"
+typeCase d ((dynType, d'):more)
+  | (_reflect d) P.== dynType = d'
+  | otherwise = typeCase d more
+
 mul = dyn f
   where
     f (a:b:[]) =
       if nyd (b == (1::Int))
         then a
-        else if (_reflect a) P.== "number"
-             then mulInt a b
-             else if (_reflect a) P.== "string"
-                  then mul $$ [ a ++ a, decInt b ]
-                  else error "'type' error"
+        else typeCase a
+          [ ("number", mulInt a b)
+          , ("string", mul $$ [ a ++ a, decInt b ])
+          ]
 
 a * b = mul $$ [a, b]
 
@@ -102,7 +120,8 @@ main = do
   print (N 123)
   print (dyn "hello")
   print $ (dyn "2 == 3 ") ++ (show $$ [(N 2) == (N 3)])
-  print $ (dyn "2 == 2 ") ++ (show $$ [(N 2) == (N 2)])
+  print $ (dyn "4 == 2 * 2 ") ++ (show $$ [(N 4) == (N 2) * (N 2)])
+  print $ (dyn [ dyn "123", N 123, dyn [ dyn True ] ])
   print show
   print $ (dyn "reflect(show): ") ++ (reflect $$ [show])
   print $ (N 2)      * (N 3)
