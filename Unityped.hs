@@ -2,50 +2,99 @@
 
 module Unityped where
 
-import Prelude hiding ((*), print, show)
+import Prelude hiding ((*), (==), print, show, concat)
 import qualified Prelude as P
 
 data D = B Bool
        | N Int
        | S String
-       | F (D -> D)
-       | F2 ((D, D) -> D)
+       | F ([D] -> D)
 
 print d = putStrLn s
-  where S s = show $$ d
+  where S s = show $$ [d]
 
-show = F f
-  where f (B True)   = dyn "true"
-        f (B False)  = dyn "false"
-        f (N n)      = dyn (P.show n)
-        f (S s)      = dyn s
-        f (F _)      = dyn "(function)"
+show = dyn f
+  where f (B True:[])  = dyn "true"
+        f (B False:[]) = dyn "false"
+        f (N n:[])     = dyn (P.show n)
+        f (S s:[])     = dyn s
+        f (F _:[])     = dyn "(function)"
 
-class Apply argType where
-  ($$) :: D -> argType -> D
+reflect = dyn f
+  where f (d:[]) = dyn (_reflect d)
 
-instance Apply D where
-  (F f) $$ d = f d
+_reflect (B _) = "bool"
+_reflect (N _) = "number"
+_reflect (S _) = "string"
+_reflect (F _) = "function(x)"
 
-instance Apply (D, D) where
-  (F2 f) $$ (d, d') = f (d, d')
+($$) :: D -> [D] -> D
+(F f) $$ ds = f ds
 
-mul = dyn f
-  where f (x    , (N 1)) = x
-        f ((N n), (N m)) = dyn (n P.* m)
-        f ((S s), (N m)) = mul $$ ((dyn (s ++ s)), (dyn (m - 1)))
-        f ((F g), (N m)) = mul $$ ((dyn (g .  g)), (dyn (m - 1)))
+class DynEq a where
+  (==) :: D -> a -> D
 
-a * b = mul $$ (a, b)
+instance DynEq Int where
+  (N n) == m = dyn (n P.== m)
+
+instance DynEq String where
+  (S s) == s' = dyn (s P.== s')
+
+instance DynEq D where
+  (B b) == (B b') = dyn (b P.== b')
+  (S s) == (S s') = dyn (s P.== s')
+  (N n) == (N n') = dyn (n P.== n')
+
+dynf :: (Dyn a, Dyn b) => (a -> b) -> D -> D
+dynf f d = dyn (f (nyd d))
+
+dynf2 :: (Dyn a, Dyn b, Dyn c) => (a -> b -> c) -> D -> D -> D
+dynf2 f d d' = dyn (f (nyd d) (nyd d'))
+
+decInt = dynf f
+  where f :: Int -> Int
+        f n = n - 1
+
+mulInt = dynf2 f
+  where f :: Int -> Int -> Int
+        f = (P.*)
+
+concat = dynf2 f
+  where f :: String -> String -> String
+        f = (++)
 
 class Dyn a where
   dyn :: a -> D
+  nyd :: D -> a
 
-instance Dyn Bool     where dyn = B
-instance Dyn Int      where dyn = N
-instance Dyn String   where dyn = S
-instance Dyn (D -> D) where dyn = F
-instance Dyn ((D, D) -> D) where dyn = F2
+instance Dyn Bool where
+  dyn = B
+  nyd (B b) = b
+
+instance Dyn Int where
+  dyn = N
+  nyd (N n) = n
+
+instance Dyn String where
+  dyn = S
+  nyd (S s) = s
+
+instance Dyn ([D] -> D) where
+  dyn = F
+  nyd (F f) = f
+
+mul = dyn f
+  where
+    f (a:b:[]) =
+      if nyd (b == (1::Int))
+        then a
+        else if (_reflect a) P.== "number"
+             then mulInt a b
+             else if (_reflect a) P.== "string"
+                  then mul $$ [ concat a a, decInt b ]
+                  else error "'type' error"
+
+a * b = mul $$ [a, b]
 
 main = do
   print (dyn True)
@@ -54,7 +103,6 @@ main = do
   print (dyn "hello")
   print show
   print $ (N 2)      * (N 3)
-  print $ (dyn "hi") * (N 3)
+  print $ (dyn "hi") * (N 3) * (N 2)
   print $ (dyn "hi") * (N 3) * (N 2) * (dyn "abc") -- "type error"
   -- print $ (B True) * (N 3) -- "type error"
-  print $ dyn True
