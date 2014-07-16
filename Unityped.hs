@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 module Unityped where
 
 import Prelude hiding ((*), print, show)
@@ -6,10 +8,8 @@ import qualified Prelude as P
 data D = B Bool
        | N Int
        | S String
-       | F (D -> D)
-       | D1 D
-       | D2 D D
-       | D3 D D D
+       | F  (D -> D)
+       | F2 ((D, D) -> D)
        | Object [(String, D)]
 
 print d = putStrLn s
@@ -21,22 +21,23 @@ show = F f
         f (N n)      = S (P.show n)
         f (S s)      = S s
         f (F _)      = S "(function)"
-        f (Object _) = S "(object)"
 
--- apply dynamic functions
-(F f) $$ d = f d
+class Apply argType where
+  ($$) :: D -> argType -> D
 
-mul = F f
-  where f (D2 x     (N 1)) = x
-        f (D2 (N n) (N m)) = N (n P.* m)
-        f (D2 (S s) (N m)) = mul $$ (D2 (S (s ++ s)) (N (m - 1)))
-        f (D2 (F g) (N m)) = mul $$ (D2 (F (g .  g)) (N (m - 1)))
+instance Apply D where
+  (F f) $$ d = f d
 
-a * b = mul $$ (D2 a b)
+instance Apply (D, D) where
+  (F2 f) $$ (d, d') = f (d, d')
 
-alan = Object [
-  ("name",         S "Alan Kay"),
-  ("yearOfBirth",  N 1940) ]
+mul = F2 f
+  where f (x    , (N 1)) = x
+        f ((N n), (N m)) = N (n P.* m)
+        f ((S s), (N m)) = mul $$ ((S (s ++ s)), (N (m - 1)))
+        f ((F g), (N m)) = mul $$ ((F (g .  g)), (N (m - 1)))
+
+a * b = mul $$ (a, b)
 
 main = do
   print (B True)
@@ -46,5 +47,4 @@ main = do
   print show
   print $ (N 2)    * (N 3)
   print $ (S "hi") * (N 3)
-  --print $ (B True) * (N 3)
-  --print alan
+  -- print $ (B True) * (N 3) -- "type error"
