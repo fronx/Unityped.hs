@@ -2,7 +2,7 @@
 
 module Unityped where
 
-import Prelude hiding ((*), (==), print, show, concat)
+import Prelude hiding ((*), (==), (++), print, show, concat)
 import qualified Prelude as P
 
 data D = B Bool
@@ -45,24 +45,6 @@ instance DynEq D where
   (S s) == (S s') = dyn (s P.== s')
   (N n) == (N n') = dyn (n P.== n')
 
-dynf :: (Dyn a, Dyn b) => (a -> b) -> D -> D
-dynf f d = dyn (f (nyd d))
-
-dynf2 :: (Dyn a, Dyn b, Dyn c) => (a -> b -> c) -> D -> D -> D
-dynf2 f d d' = dyn (f (nyd d) (nyd d'))
-
-decInt = dynf f
-  where f :: Int -> Int
-        f n = n - 1
-
-mulInt = dynf2 f
-  where f :: Int -> Int -> Int
-        f = (P.*)
-
-concat = dynf2 f
-  where f :: String -> String -> String
-        f = (++)
-
 class Dyn a where
   dyn :: a -> D
   nyd :: D -> a
@@ -83,6 +65,24 @@ instance Dyn ([D] -> D) where
   dyn = F
   nyd (F f) = f
 
+dynf :: (Dyn a, Dyn b) => (a -> b) -> D -> D
+dynf f d = dyn (f (nyd d))
+
+dynf2 :: (Dyn a, Dyn b, Dyn c) => (a -> b -> c) -> D -> D -> D
+dynf2 f d d' = dyn (f (nyd d) (nyd d'))
+
+decInt = dynf f
+  where f :: Int -> Int
+        f n = n - 1
+
+mulInt = dynf2 f
+  where f :: Int -> Int -> Int
+        f = (P.*)
+
+(++) = dynf2 f
+  where f :: String -> String -> String
+        f = (P.++)
+
 mul = dyn f
   where
     f (a:b:[]) =
@@ -91,7 +91,7 @@ mul = dyn f
         else if (_reflect a) P.== "number"
              then mulInt a b
              else if (_reflect a) P.== "string"
-                  then mul $$ [ concat a a, decInt b ]
+                  then mul $$ [ a ++ a, decInt b ]
                   else error "'type' error"
 
 a * b = mul $$ [a, b]
@@ -101,7 +101,10 @@ main = do
   print (dyn False)
   print (N 123)
   print (dyn "hello")
+  print $ (dyn "2 == 3 ") ++ (show $$ [(N 2) == (N 3)])
+  print $ (dyn "2 == 2 ") ++ (show $$ [(N 2) == (N 2)])
   print show
+  print $ (dyn "reflect(show): ") ++ (reflect $$ [show])
   print $ (N 2)      * (N 3)
   print $ (dyn "hi") * (N 3) * (N 2)
   print $ (dyn "hi") * (N 3) * (N 2) * (dyn "abc") -- "type error"
