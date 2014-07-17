@@ -3,7 +3,7 @@ module Unityped where
 
 -- hide builtin functions so we can use our own
 -- implementations instead:
-import Prelude hiding ((*), (-), (==), (++), print, show, concat)
+import Prelude hiding ((*), (-), (==), (++), (<), (>), print, show, concat)
 -- if we want to use builtins, we just write P.<builtin>
 import qualified Prelude as P
 import Data.List (intercalate)
@@ -26,6 +26,7 @@ data D = B Bool
        | Null -- YOLO
 
 -- operator for accessing a member of an object
+infix 9 .@ -- strongly binding
 (.@) :: D -> String -> D
 obj .@ field = member (_fields obj)
   where
@@ -130,8 +131,10 @@ _mulInt = dynf2 f
         f = (P.++)
 
 -- operator for applying a dynamic function to its arguments
+infix 3 $$
 ($$) :: D -> [D] -> D
 (F f) $$ ds = f ds
+
 
 -- this is a convenience function that allows you
 -- to dispatch on a string representation of the
@@ -203,12 +206,25 @@ mul = dyn f
           (typeError "number or string" a)
 
 minus = dyn f
+  where f (a:b:[]) = N ((nyd a) P.- (nyd b))
+
+lt = dyn f
   where
-    f (a:b:[]) = N ((nyd a) P.- (nyd b))
+    f (a:b:[]) = dyn (_ltInt (nyd a) (nyd b))
+    _ltInt :: Int -> Int -> Bool
+    _ltInt a b = a P.< b
+
+gt = dyn f
+  where
+    f (a:b:[]) = dyn (_gtInt (nyd a) (nyd b))
+    _gtInt :: Int -> Int -> Bool
+    _gtInt a b = a P.> b
 
 -- operator syntax for convenience
-a * b = mul $$ [a, b]
+a * b = mul   $$ [a, b]
 a - b = minus $$ [a, b]
+a < b = lt    $$ [a, b]
+a > b = gt    $$ [a, b]
 
 -- hey, let's define a class!
 person = Class "person" constr
@@ -217,10 +233,12 @@ person = Class "person" constr
         [ ("name",       name)
         , ("birthyear",  birthyear)
         , ("age",        age)
+        , ("isOlder",    dyn isOlder)
         ]
       where
         year = N 2014
         age = year - birthyear
+        isOlder (other:[]) = dyn (age > (other .@ "age"))
 
 -- and some objects of our class!
 mary = new person [ dyn "Mary", N 1978 ]
@@ -242,6 +260,7 @@ main = do
   print mary
   print (mary .@ "age")
   print joe
+  print $ (dyn "Is Joe older than Mary? ") ++ (show $$ [joe .@ "isOlder" $$ [mary]])
   print nobody -- runtime type error
   print $ (dyn "reflect(show): ") ++ (reflect $$ [show])
   print $ (N 2)      * (N 3)
