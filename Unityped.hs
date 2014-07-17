@@ -4,7 +4,7 @@ module Unityped where
 
 import Prelude hiding ((*), (-), (==), (++), print, show, concat)
 import qualified Prelude as P
-import Data.List hiding ((++))
+import Data.List (intercalate)
 import Debug.Trace
 
 -- This is the one static type that contains
@@ -133,7 +133,7 @@ show = dyn f
         (dyn "{") ++
         showList pairShow (fields obj) ++
         (dyn "}")
-    showList showFn l = (dyn (intercalate ", " (map showFn l)))
+    showList showFn l = (dyn (Data.List.intercalate ", " (map showFn l)))
     nydShow d = nyd (show $$ [d])
     pairShow (key, value) =
       key P.++ "=" P.++ nyd (show $$ [value])
