@@ -49,7 +49,7 @@ typeError expectedType receivedD =
 -- this set of polymorphic functions is the connection
 -- between the typed world and the dynamically typed world.
 -- you can implement these functions for any static type
--- in order to make it participate in
+-- in order to make it participate.
 class Dyn a where
   -- converting static to dynamic
   dyn :: a -> D
