@@ -117,14 +117,6 @@ dynf f d = dyn (f (nyd d))
 dynf2 :: (Dyn a, Dyn b, Dyn c) => (a -> b -> c) -> D -> D -> D
 dynf2 f d d' = dyn (f (nyd d) (nyd d'))
 
-_decInt = dynf f
-  where f :: Int -> Int
-        f n = n P.- 1
-
-_mulInt = dynf2 f
-  where f :: Int -> Int -> Int
-        f = (P.*)
-
 -- operator for concatenation of dynamic strings
 (++) = dynf2 f
   where f :: String -> String -> String
@@ -134,7 +126,6 @@ _mulInt = dynf2 f
 infix 3 $$
 ($$) :: D -> [D] -> D
 (F f) $$ ds = f ds
-
 
 -- this is a convenience function that allows you
 -- to dispatch on a string representation of the
@@ -167,58 +158,60 @@ className = reflect
 -- we could use pattern matching here instead, but `typeCase`
 -- frees us from having to know how dynamic types are represented
 -- in the typed world.
-show = dyn f
-  where
-    f (d:[]) = typeCase d
-      [ ("bool",     if nyd (d == True) then (dyn "true") else (dyn "false"))
-      , ("number",   showNum d)
-      , ("string",   nyd d)
-      , ("function", dyn "(function)")
-      , ("list",     (dyn "[") ++ showList nydShow (nyd d) ++ (dyn "]"))
-      , ("null",     dyn "(null)")
-      , ("class",    (dyn "class:") ++ (dyn (_name d)))
-      ]
-      -- otherwise: it must be an instance of a user-defined class
-      (showObj d)
+show = dyn f where
+  f (d:[]) = typeCase d
+    [ ("bool",     if nyd (d == True) then (dyn "true") else (dyn "false"))
+    , ("number",   showNum d)
+    , ("string",   nyd d)
+    , ("function", dyn "(function)")
+    , ("list",     (dyn "[") ++ showList nydShow (nyd d) ++ (dyn "]"))
+    , ("null",     dyn "(null)")
+    , ("class",    (dyn "class:") ++ (dyn (_name d)))
+    ]
+    -- otherwise: it must be an instance of a user-defined class
+    (showObj d)
 
-    showObj d = ( (className $$ [d])            ++ (dyn "{") ++
-                  showList pairShow (_fields d) ++ (dyn "}")
-                )
-    -- the builtin `show` function is polymorphic and open, i.e.
-    -- you can add implementations for any concrete type.
-    -- we have to provide an explicit type here to indicate which
-    -- instance we want to use. (this is kind of a special situation.)
-    showNum = dynf (P.show :: Int    -> String)
-    showList showFn l = (dyn (Data.List.intercalate ", " (map showFn l)))
-    nydShow d = nyd (show $$ [d])
-    pairShow (key, value) = key P.++ "=" P.++ nyd (show $$ [value])
+  showObj d = ( (className $$ [d])            ++ (dyn "{") ++
+                showList pairShow (_fields d) ++ (dyn "}")
+              )
+  -- the builtin `show` function is polymorphic and open, i.e.
+  -- you can add implementations for any concrete type.
+  -- we have to provide an explicit type here to indicate which
+  -- instance we want to use. (this is kind of a special situation.)
+  showNum = dynf (P.show :: Int    -> String)
+  showList showFn l = (dyn (Data.List.intercalate ", " (map showFn l)))
+  nydShow d = nyd (show $$ [d])
+  pairShow (key, value) = key P.++ "=" P.++ nyd (show $$ [value])
 
 -- multiplication for dynamic numbers and strings
-mul = dyn f
-  where
-    f (a:b:[]) =
-      if nyd (b == (1::Int))
-        then a
-        else typeCase a
-          [ ("number", _mulInt a b)
-          , ("string", mul $$ [ a ++ a, _decInt b ])
-          ]
-          (typeError "number or string" a)
+mul = dyn f where
+  f (a:b:[]) =
+    if nyd (b == (1::Int))
+      then a
+      else typeCase a
+        [ ("number", (dynf2 _mulInt) a b)
+        , ("string", mul $$ [ a ++ a, (dynf _decInt) b ])
+        ]
+        (typeError "number or string" a)
+  _mulInt :: Int -> Int -> Int
+  _mulInt = (P.*)
+  _decInt :: Int -> Int
+  _decInt n = n P.- 1
 
-minus = dyn f
-  where f (a:b:[]) = N ((nyd a) P.- (nyd b))
+minus = dyn f where
+  f (a:b:[]) = (dynf2 _minusInt) a b
+  _minusInt :: Int -> Int -> Int
+  _minusInt = (P.-)
 
-lt = dyn f
-  where
-    f (a:b:[]) = dyn (_ltInt (nyd a) (nyd b))
-    _ltInt :: Int -> Int -> Bool
-    _ltInt a b = a P.< b
+lt = dyn f where
+  f (a:b:[]) = (dynf2 _ltInt) a b
+  _ltInt :: Int -> Int -> Bool
+  _ltInt a b = a P.< b
 
-gt = dyn f
-  where
-    f (a:b:[]) = dyn (_gtInt (nyd a) (nyd b))
-    _gtInt :: Int -> Int -> Bool
-    _gtInt a b = a P.> b
+gt = dyn f where
+  f (a:b:[]) = (dynf2 _gtInt) a b
+  _gtInt :: Int -> Int -> Bool
+  _gtInt a b = a P.> b
 
 -- operator syntax for convenience
 a * b = mul   $$ [a, b]
