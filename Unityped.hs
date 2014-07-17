@@ -161,7 +161,7 @@ className = reflect
 
 -- turning a dynamic value into a dynamic string.
 --
--- we could use pattern matching here instead, but typeCase
+-- we could use pattern matching here instead, but `typeCase`
 -- frees us from having to know how dynamic types are represented
 -- in the typed world.
 show = dyn f
@@ -181,6 +181,10 @@ show = dyn f
     showObj d = ( (className $$ [d])           ++ (dyn "{") ++
                   showList pairShow (fields d) ++ (dyn "}")
                 )
+    -- the builtin `show` function is polymorphic and open, i.e.
+    -- you can add implementations for any concrete type.
+    -- we have to provide an explicit type here to indicate which
+    -- instance we want to use. (this is kind of a special situation.)
     showNum = dynf (P.show :: Int    -> String)
     showStr = dynf (P.show :: String -> String)
     showList showFn l = (dyn (Data.List.intercalate ", " (map showFn l)))
