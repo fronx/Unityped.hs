@@ -136,31 +136,11 @@ mulInt = dynf2 f
 -- this is a convenience function that allows you
 -- to dispatch on a string representation of the
 -- "dynamic type" of a value:
-typeCase :: D -> [(String, D)] -> D
-typeCase d [] = typeError "(?)" d
-typeCase d ((dynType, d'):more)
+typeCase :: D -> [(String, D)] -> D -> D
+typeCase d [] fallback = fallback
+typeCase d ((dynType, d'):more) fallback
   | (_reflect d) P.== dynType = d'
-  | otherwise = typeCase d more
-
--- turning a dynamic value into a dynamic string
-show = dyn f
-  where
-    f (B True  :[]) = dyn "true"
-    f (B False :[]) = dyn "false"
-    f (N n     :[]) = dyn (P.show n)
-    f (S s     :[]) = dyn s
-    f (F _     :[]) = dyn "(function)"
-    f (Null    :[]) = dyn "(null)"
-    f (List l  :[]) = (dyn "[") ++ showList nydShow l ++ (dyn "]")
-    f (obj     :[]) | (Obj _class _fields) <- obj =
-      (className obj) ++
-        (dyn "{") ++
-        showList pairShow (fields obj) ++
-        (dyn "}")
-    showList showFn l = (dyn (Data.List.intercalate ", " (map showFn l)))
-    nydShow d = nyd (show $$ [d])
-    pairShow (key, value) =
-      key P.++ "=" P.++ nyd (show $$ [value])
+  | otherwise                 = typeCase d more fallback
 
 -- runtime type reflection
 reflect = dyn f
@@ -171,11 +151,37 @@ _reflect (B _) = "bool"
 _reflect (N _) = "number"
 _reflect (S _) = "string"
 _reflect (F _) = "function"
+_reflect Null  = "null"
 _reflect (List _) = "list"
+_reflect (Class _ _) = "class"
 _reflect obj | (Obj _ _) <- obj = _name (typeOf obj)
 
 -- the name of the class of an object as a dynamic string
 className = dyn . _reflect
+
+-- turning a dynamic value into a dynamic string
+show = dyn f
+  where
+    f (d:[]) = typeCase d
+      [ ("bool",     if nyd (d == True) then (dyn "true") else (dyn "false"))
+      , ("number",   showNum d)
+      , ("string",   showStr d)
+      , ("function", dyn "(function)")
+      , ("list",     (dyn "[") ++ showList nydShow (nyd d) ++ (dyn "]"))
+      , ("null",     dyn "(null)")
+      , ("class",    (dyn "class:") ++ (dyn (_name d)))
+      ]
+      -- otherwise: it must be an instance of a user-defined class
+      (showObj d)
+
+    showObj d = ( (className d)                ++ (dyn "{") ++
+                  showList pairShow (fields d) ++ (dyn "}")
+                )
+    showNum = dynf (P.show :: Int    -> String)
+    showStr = dynf (P.show :: String -> String)
+    showList showFn l = (dyn (Data.List.intercalate ", " (map showFn l)))
+    nydShow d = nyd (show $$ [d])
+    pairShow (key, value) = key P.++ "=" P.++ nyd (show $$ [value])
 
 -- multiplication for dynamic numbers and strings
 mul = dyn f
@@ -187,6 +193,7 @@ mul = dyn f
           [ ("number", mulInt a b)
           , ("string", mul $$ [ a ++ a, decInt b ])
           ]
+          (typeError "number or string" a)
 
 minus = dyn f
   where
