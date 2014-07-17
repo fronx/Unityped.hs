@@ -159,7 +159,11 @@ _reflect obj | (Obj _ _) <- obj = _name (typeOf obj)
 -- the name of the class of an object as a dynamic string
 className = dyn . _reflect
 
--- turning a dynamic value into a dynamic string
+-- turning a dynamic value into a dynamic string.
+--
+-- we could use pattern matching here instead, but typeCase
+-- frees us from having to know how dynamic types are represented
+-- in the typed world.
 show = dyn f
   where
     f (d:[]) = typeCase d
