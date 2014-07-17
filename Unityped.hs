@@ -20,6 +20,13 @@ data D = B Bool
        | Method
        | Null
 
+typeCase :: D -> [(String, D)] -> D
+typeCase d [] = error "empty case list"
+typeCase d ((dynType, d'):more)
+  | (_reflect d) P.== dynType = d'
+  | otherwise = typeCase d more
+
+-- access a member of an object
 (.@) :: D -> String -> D
 obj .@ field = member (fields obj)
   where
@@ -29,17 +36,7 @@ obj .@ field = member (fields obj)
       then val
         else member more
 
-person = Class "person" constr
-  where
-    constr (name:birthyear:[]) =
-        [ ("name",       name)
-        , ("birthyear",  birthyear)
-        , ("age",        age)
-        ]
-      where
-        year = N 2014
-        age = minusInt year birthyear
-
+-- create an instance of a class
 new _class args =
   Obj _class ((_constr _class) args)
 
@@ -139,12 +136,6 @@ mulInt = dynf2 f
 ($$) :: D -> [D] -> D
 (F f) $$ ds = f ds
 
-typeCase :: D -> [(String, D)] -> D
-typeCase d [] = error "empty case list"
-typeCase d ((dynType, d'):more)
-  | (_reflect d) P.== dynType = d'
-  | otherwise = typeCase d more
-
 mul = dyn f
   where
     f (a:b:[]) =
@@ -156,6 +147,17 @@ mul = dyn f
           ]
 
 a * b = mul $$ [a, b]
+
+person = Class "person" constr
+  where
+    constr (name:birthyear:[]) =
+        [ ("name",       name)
+        , ("birthyear",  birthyear)
+        , ("age",        age)
+        ]
+      where
+        year = N 2014
+        age = minusInt year birthyear
 
 mary = new person [ dyn "Mary", N 1978 ]
 joe  = new person [ dyn "Joe",  N 1992 ]
@@ -170,6 +172,7 @@ main = do
   print $ (dyn [ dyn "123", N 123, dyn [ dyn True ] ])
   print show
   print mary
+  print (mary .@ "age")
   print joe
   print $ (dyn "reflect(show): ") ++ (reflect $$ [show])
   print $ (N 2)      * (N 3)
