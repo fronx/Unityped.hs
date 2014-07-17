@@ -169,7 +169,7 @@ show = dyn f
     f (d:[]) = typeCase d
       [ ("bool",     if nyd (d == True) then (dyn "true") else (dyn "false"))
       , ("number",   showNum d)
-      , ("string",   showStr d)
+      , ("string",   nyd d)
       , ("function", dyn "(function)")
       , ("list",     (dyn "[") ++ showList nydShow (nyd d) ++ (dyn "]"))
       , ("null",     dyn "(null)")
@@ -186,7 +186,6 @@ show = dyn f
     -- we have to provide an explicit type here to indicate which
     -- instance we want to use. (this is kind of a special situation.)
     showNum = dynf (P.show :: Int    -> String)
-    showStr = dynf (P.show :: String -> String)
     showList showFn l = (dyn (Data.List.intercalate ", " (map showFn l)))
     nydShow d = nyd (show $$ [d])
     pairShow (key, value) = key P.++ "=" P.++ nyd (show $$ [value])
