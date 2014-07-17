@@ -20,14 +20,14 @@ data D = B Bool
        | Class { _name   :: String
                , _constr :: [D] -> [(String, D)]
                }
-       | Obj { typeOf :: D
-             , fields :: [(String, D)]
+       | Obj { _typeOf :: D
+             , _fields :: [(String, D)]
              }
        | Null -- YOLO
 
 -- operator for accessing a member of an object
 (.@) :: D -> String -> D
-obj .@ field = member (fields obj)
+obj .@ field = member (_fields obj)
   where
     member [] = Null
     member ((key, val):more) =
@@ -116,11 +116,11 @@ dynf f d = dyn (f (nyd d))
 dynf2 :: (Dyn a, Dyn b, Dyn c) => (a -> b -> c) -> D -> D -> D
 dynf2 f d d' = dyn (f (nyd d) (nyd d'))
 
-decInt = dynf f
+_decInt = dynf f
   where f :: Int -> Int
         f n = n P.- 1
 
-mulInt = dynf2 f
+_mulInt = dynf2 f
   where f :: Int -> Int -> Int
         f = (P.*)
 
@@ -154,7 +154,7 @@ _reflect (F _) = "function"
 _reflect Null  = "null"
 _reflect (List _) = "list"
 _reflect (Class _ _) = "class"
-_reflect obj | (Obj _ _) <- obj = _name (typeOf obj)
+_reflect obj | (Obj _ _) <- obj = _name (_typeOf obj)
 
 -- the name of the class of an object as a dynamic string
 className = reflect
@@ -178,8 +178,8 @@ show = dyn f
       -- otherwise: it must be an instance of a user-defined class
       (showObj d)
 
-    showObj d = ( (className $$ [d])           ++ (dyn "{") ++
-                  showList pairShow (fields d) ++ (dyn "}")
+    showObj d = ( (className $$ [d])            ++ (dyn "{") ++
+                  showList pairShow (_fields d) ++ (dyn "}")
                 )
     -- the builtin `show` function is polymorphic and open, i.e.
     -- you can add implementations for any concrete type.
@@ -198,8 +198,8 @@ mul = dyn f
       if nyd (b == (1::Int))
         then a
         else typeCase a
-          [ ("number", mulInt a b)
-          , ("string", mul $$ [ a ++ a, decInt b ])
+          [ ("number", _mulInt a b)
+          , ("string", mul $$ [ a ++ a, _decInt b ])
           ]
           (typeError "number or string" a)
 
