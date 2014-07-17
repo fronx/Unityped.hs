@@ -1,8 +1,10 @@
 {-# LANGUAGE FlexibleInstances #-}
-
 module Unityped where
 
+-- hide builtin functions so we can use our own
+-- implementations instead:
 import Prelude hiding ((*), (-), (==), (++), print, show, concat)
+-- if we want to use builtins, we just write P.<builtin>
 import qualified Prelude as P
 import Data.List (intercalate)
 import Debug.Trace
@@ -14,24 +16,16 @@ data D = B Bool
        | S String
        | F ([D] -> D)
        | List [D]
-       | Obj { typeOf :: D
-             , fields :: [(String, D)]
-             }
+       -- OMG it's even object-oriented!
        | Class { _name   :: String
                , _constr :: [D] -> [(String, D)]
                }
+       | Obj { typeOf :: D
+             , fields :: [(String, D)]
+             }
        | Null -- YOLO
 
--- this is a convenience function that allows you
--- to dispatch on a string representation of the
--- "dynamic type" of a value:
-typeCase :: D -> [(String, D)] -> D
-typeCase d [] = typeError "(?)" d
-typeCase d ((dynType, d'):more)
-  | (_reflect d) P.== dynType = d'
-  | otherwise = typeCase d more
-
--- access a member of an object
+-- operator for accessing a member of an object
 (.@) :: D -> String -> D
 obj .@ field = member (fields obj)
   where
@@ -52,14 +46,26 @@ typeError expectedType receivedD =
                 " but received a " P.++ (_reflect receivedD) P.++
                 ": " P.++ nyd (show $$ [receivedD])
 
+-- this set of polymorphic functions is the connection
+-- between the typed world and the dynamically typed world.
+-- you can implement these functions for any static type
+-- in order to make it participate in
 class Dyn a where
+  -- converting static to dynamic
   dyn :: a -> D
+  -- converting dynamic to static
   nyd :: D -> a
+  -- you can compare a dynamic value with a typed value
   (==) :: D -> a -> D
+  -- explicitly empty default implementation of equality:
   d == _ = undefined
 
+-- operator precedence for equality
 infix 4 ==
 
+--
+-- and here we go, adding types to the world of Dyns:
+--
 instance Dyn Bool where
   dyn = B
   nyd (B b)   = b
@@ -98,9 +104,15 @@ instance Dyn D where
   (S s) == (S s') = dyn (s P.== s')
   (N n) == (N n') = dyn (n P.== n')
 
+--
+-- amazing helper functions
+--
+
+-- turn a proper unary function into a dynamic function
 dynf :: (Dyn a, Dyn b) => (a -> b) -> D -> D
 dynf f d = dyn (f (nyd d))
 
+-- turn a proper binary function into a dynamic function
 dynf2 :: (Dyn a, Dyn b, Dyn c) => (a -> b -> c) -> D -> D -> D
 dynf2 f d d' = dyn (f (nyd d) (nyd d'))
 
@@ -112,13 +124,25 @@ mulInt = dynf2 f
   where f :: Int -> Int -> Int
         f = (P.*)
 
+-- operator for concatenation of dynamic strings
 (++) = dynf2 f
   where f :: String -> String -> String
         f = (P.++)
 
+-- operator for applying a dynamic function to its arguments
 ($$) :: D -> [D] -> D
 (F f) $$ ds = f ds
 
+-- this is a convenience function that allows you
+-- to dispatch on a string representation of the
+-- "dynamic type" of a value:
+typeCase :: D -> [(String, D)] -> D
+typeCase d [] = typeError "(?)" d
+typeCase d ((dynType, d'):more)
+  | (_reflect d) P.== dynType = d'
+  | otherwise = typeCase d more
+
+-- turning a dynamic value into a dynamic string
 show = dyn f
   where
     f (B True  :[]) = dyn "true"
@@ -150,6 +174,7 @@ _reflect (F _) = "function"
 _reflect (List _) = "list"
 _reflect obj | (Obj _ _) <- obj = _name (typeOf obj)
 
+-- the name of the class of an object as a dynamic string
 className = dyn . _reflect
 
 -- multiplication for dynamic numbers and strings
@@ -188,7 +213,9 @@ mary = new person [ dyn "Mary", N 1978 ]
 joe  = new person [ dyn "Joe",  N 1992 ]
 nobody = new person [ dyn "Nobody", dyn "1884" ]
 
--- let's test a few things, including runtime errors
+--
+-- okay, let's test a few things, including runtime errors
+--
 main = do
   print (dyn True)
   print (dyn False)
