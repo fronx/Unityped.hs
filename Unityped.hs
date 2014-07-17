@@ -2,9 +2,10 @@
 
 module Unityped where
 
-import Prelude hiding ((*), (==), (++), print, show, concat)
+import Prelude hiding ((*), (-), (==), (++), print, show, concat)
 import qualified Prelude as P
 import Data.List hiding ((++))
+import Debug.Trace
 
 data D = B Bool
        | N Int
@@ -87,6 +88,12 @@ instance DynEq D where
   (S s) == (S s') = dyn (s P.== s')
   (N n) == (N n') = dyn (n P.== n')
 
+typeError expectedType receivedD =
+  traceStack msg (error "typeError")
+    where msg = "!! typeError: expected a " P.++ expectedType P.++
+                " but received a " P.++ (_reflect receivedD) P.++
+                ": " P.++ nyd (show $$ [receivedD])
+
 class Dyn a where
   dyn :: a -> D
   nyd :: D -> a
@@ -94,22 +101,27 @@ class Dyn a where
 instance Dyn Bool where
   dyn = B
   nyd (B b) = b
+  nyd d = typeError "bool" d
 
 instance Dyn Int where
   dyn = N
   nyd (N n) = n
+  nyd d = typeError "number" d
 
 instance Dyn String where
   dyn = S
   nyd (S s) = s
+  nyd d = typeError "string" d
 
 instance Dyn ([D] -> D) where
   dyn = F
   nyd (F f) = f
+  nyd d = typeError "function" d
 
 instance Dyn [D] where
   dyn = List
   nyd (List l) = l
+  nyd d = typeError "list" d
 
 dynf :: (Dyn a, Dyn b) => (a -> b) -> D -> D
 dynf f d = dyn (f (nyd d))
@@ -119,11 +131,7 @@ dynf2 f d d' = dyn (f (nyd d) (nyd d'))
 
 decInt = dynf f
   where f :: Int -> Int
-        f n = n - 1
-
-minusInt = dynf2 f
-  where f :: Int -> Int -> Int
-        f a b = a - b
+        f n = n P.- 1
 
 mulInt = dynf2 f
   where f :: Int -> Int -> Int
@@ -146,7 +154,13 @@ mul = dyn f
           , ("string", mul $$ [ a ++ a, decInt b ])
           ]
 
+minus = dyn f
+  where
+    f (a:b:[]) = N ((nyd a) P.- (nyd b))
+
+-- operator syntax for convenience
 a * b = mul $$ [a, b]
+a - b = minus $$ [a, b]
 
 person = Class "person" constr
   where
@@ -157,10 +171,11 @@ person = Class "person" constr
         ]
       where
         year = N 2014
-        age = minusInt year birthyear
+        age = year - birthyear
 
 mary = new person [ dyn "Mary", N 1978 ]
 joe  = new person [ dyn "Joe",  N 1992 ]
+nobody = new person [ dyn "Nobody", dyn "1884" ]
 
 main = do
   print (dyn True)
@@ -174,6 +189,7 @@ main = do
   print mary
   print (mary .@ "age")
   print joe
+  print nobody
   print $ (dyn "reflect(show): ") ++ (reflect $$ [show])
   print $ (N 2)      * (N 3)
   print $ (dyn "hi") * (N 3) * (N 2)
