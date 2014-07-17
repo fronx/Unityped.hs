@@ -11,20 +11,59 @@ data D = B Bool
        | S String
        | F ([D] -> D)
        | List [D]
+       | Obj { typeOf :: D
+             , fields :: [(String, D)]
+             }
+       | Class { _name   :: String
+               , _constr :: [D] -> [(String, D)]
+               }
+       | Method
+       | Null
+
+(.@) :: D -> String -> D
+obj .@ field = member (fields obj)
+  where
+    member [] = Null
+    member ((key, val):more) =
+      if key P.== field
+      then val
+        else member more
+
+person = Class "person" constr
+  where
+    constr (name:birthyear:[]) =
+        [ ("name",       name)
+        , ("birthyear",  birthyear)
+        , ("age",        age)
+        ]
+      where
+        year = N 2014
+        age = minusInt year birthyear
+
+new _class args =
+  Obj _class ((_constr _class) args)
+
+className obj = dyn (_name (typeOf obj))
+
+show = dyn f
+  where f (B True  :[]) = dyn "true"
+        f (B False :[]) = dyn "false"
+        f (N n     :[]) = dyn (P.show n)
+        f (S s     :[]) = dyn s
+        f (F _     :[]) = dyn "(function)"
+        f (List l  :[]) = (dyn "[") ++ showList nydShow l ++ (dyn "]")
+        f (obj     :[]) | (Obj _class _fields) <- obj =
+          (className obj) ++
+            (dyn "{") ++
+            showList pairShow (fields obj) ++
+            (dyn "}")
+        showList showFn l = (dyn (intercalate ", " (map showFn l)))
+        nydShow d = nyd (show $$ [d])
+        pairShow (key, value) =
+          key P.++ "=" P.++ nyd (show $$ [value])
 
 print d = putStrLn s
   where S s = show $$ [d]
-
-show = dyn f
-  where f (B True:[])  = dyn "true"
-        f (B False:[]) = dyn "false"
-        f (N n:[])     = dyn (P.show n)
-        f (S s:[])     = dyn s
-        f (F _:[])     = dyn "(function)"
-        f (List l:[])  = (dyn "[") ++
-                         (dyn (intercalate ", " (map nydShow l))) ++
-                         (dyn "]")
-        nydShow d = nyd (show $$ [d])
 
 reflect = dyn f
   where f (d:[]) = dyn (_reflect d)
@@ -85,6 +124,10 @@ decInt = dynf f
   where f :: Int -> Int
         f n = n - 1
 
+minusInt = dynf2 f
+  where f :: Int -> Int -> Int
+        f a b = a - b
+
 mulInt = dynf2 f
   where f :: Int -> Int -> Int
         f = (P.*)
@@ -114,6 +157,9 @@ mul = dyn f
 
 a * b = mul $$ [a, b]
 
+mary = new person [ dyn "Mary", N 1978 ]
+joe  = new person [ dyn "Joe",  N 1992 ]
+
 main = do
   print (dyn True)
   print (dyn False)
@@ -123,6 +169,8 @@ main = do
   print $ (dyn "4 == 2 * 2 ") ++ (show $$ [(N 4) == (N 2) * (N 2)])
   print $ (dyn [ dyn "123", N 123, dyn [ dyn True ] ])
   print show
+  print mary
+  print joe
   print $ (dyn "reflect(show): ") ++ (reflect $$ [show])
   print $ (N 2)      * (N 3)
   print $ (dyn "hi") * (N 3) * (N 2)
