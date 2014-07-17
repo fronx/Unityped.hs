@@ -157,7 +157,7 @@ _reflect (Class _ _) = "class"
 _reflect obj | (Obj _ _) <- obj = _name (typeOf obj)
 
 -- the name of the class of an object as a dynamic string
-className = dyn . _reflect
+className = reflect
 
 -- turning a dynamic value into a dynamic string.
 --
@@ -178,7 +178,7 @@ show = dyn f
       -- otherwise: it must be an instance of a user-defined class
       (showObj d)
 
-    showObj d = ( (className d)                ++ (dyn "{") ++
+    showObj d = ( (className $$ [d])           ++ (dyn "{") ++
                   showList pairShow (fields d) ++ (dyn "}")
                 )
     showNum = dynf (P.show :: Int    -> String)
