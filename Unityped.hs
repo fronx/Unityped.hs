@@ -119,8 +119,7 @@ dynf2 f d d' = dyn (f (nyd d) (nyd d'))
 
 -- operator for concatenation of dynamic strings
 (++) = dynf2 f
-  where f :: String -> String -> String
-        f = (P.++)
+  where f = (P.++) :: String -> String -> String
 
 -- operator for applying a dynamic function to its arguments
 infix 3 $$
@@ -178,7 +177,7 @@ show = dyn f where
   -- you can add implementations for any concrete type.
   -- we have to provide an explicit type here to indicate which
   -- instance we want to use. (this is kind of a special situation.)
-  showNum = dynf (P.show :: Int    -> String)
+  showNum = dynf (P.show :: Int -> String)
   showList showFn l = (dyn (Data.List.intercalate ", " (map showFn l)))
   nydShow d = nyd (show $$ [d])
   pairShow (key, value) = key P.++ "=" P.++ nyd (show $$ [value])
@@ -193,25 +192,21 @@ mul = dyn f where
         , ("string", mul $$ [ a ++ a, (dynf _decInt) b ])
         ]
         (typeError "number or string" a)
-  _mulInt :: Int -> Int -> Int
-  _mulInt = (P.*)
+  _mulInt = (P.*) :: Int -> Int -> Int
   _decInt :: Int -> Int
   _decInt n = n P.- 1
 
 minus = dyn f where
   f (a:b:[]) = (dynf2 _minusInt) a b
-  _minusInt :: Int -> Int -> Int
-  _minusInt = (P.-)
+  _minusInt = (P.-) :: Int -> Int -> Int
 
 lt = dyn f where
   f (a:b:[]) = (dynf2 _ltInt) a b
-  _ltInt :: Int -> Int -> Bool
-  _ltInt a b = a P.< b
+  _ltInt = (P.<) :: Int -> Int -> Bool
 
 gt = dyn f where
   f (a:b:[]) = (dynf2 _gtInt) a b
-  _gtInt :: Int -> Int -> Bool
-  _gtInt a b = a P.> b
+  _gtInt = (P.>) :: Int -> Int -> Bool
 
 -- operator syntax for convenience
 a * b = mul   $$ [a, b]
